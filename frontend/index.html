@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Foro 7 - Stack Containerizado</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 700px;
+      margin: 40px auto;
+      background: #f4f6f8;
+      color: #222;
+    }
+
+    section {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+
+    input {
+      padding: 10px;
+      width: 70%;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+    }
+
+    li {
+      margin: 8px 0;
+    }
+  </style>
+</head>
+
+<body>
+  <section>
+    <h1>Foro 7 - Aimaretti - Palazzo</h1>
+
+    <input id="noteInput" placeholder="Escribí una nota..." />
+    <button onclick="createNote()">Guardar</button>
+
+    <h2>Notas guardadas</h2>
+    <ul id="notesList"></ul>
+  </section>
+
+  <script>
+    async function loadNotes() {
+      const response = await fetch("/api/notes");
+      const notes = await response.json();
+
+      const list = document.getElementById("notesList");
+      list.innerHTML = "";
+
+      notes.forEach(note => {
+        const item = document.createElement("li");
+        item.textContent = `#${note.id} - ${note.text}`;
+        list.appendChild(item);
+      });
+    }
+
+    async function createNote() {
+      const input = document.getElementById("noteInput");
+      const text = input.value.trim();
+
+      if (!text) return;
+
+      await fetch("/api/notes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ text })
+      });
+
+      input.value = "";
+      await loadNotes();
+    }
+
+    loadNotes();
+  </script>
+</body>
+</html>
