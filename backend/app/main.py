@@ -3,14 +3,16 @@ from contextlib import asynccontextmanager, contextmanager
 
 import psycopg
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 
-class NoteCreate(BaseModel):
-    text: str
+class TicketCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=150)
+    description: str = Field(min_length=1, max_length=500)
+    priority: str = Field(min_length=1, max_length=50)
 
 
 @contextmanager
@@ -31,9 +33,12 @@ def init_db():
         with conn.cursor() as cur:
             cur.execute(
                 """
-                CREATE TABLE IF NOT EXISTS notes (
+                CREATE TABLE IF NOT EXISTS tickets (
                     id SERIAL PRIMARY KEY,
-                    text VARCHAR(255) NOT NULL,
+                    title VARCHAR(150) NOT NULL,
+                    description VARCHAR(500) NOT NULL,
+                    priority VARCHAR(50) NOT NULL,
+                    status VARCHAR(50) NOT NULL DEFAULT 'Abierto',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 """
@@ -48,15 +53,17 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Foro 7 API", lifespan=lifespan)
+app = FastAPI(title="Foro 7 - API Mesa de Ayuda", lifespan=lifespan)
+
 
 @app.get("/")
 def root():
     return {
-        "message": "Foro 7 API funcionando",
+        "message": "API de mesa de ayuda funcionando",
         "docs": "/docs",
         "health": "/health",
     }
+
 
 @app.get("/health")
 def health():
@@ -72,13 +79,21 @@ def health():
         raise HTTPException(status_code=503, detail=str(exc))
 
 
-@app.post("/notes", status_code=201)
-def create_note(note: NoteCreate):
+@app.post("/tickets", status_code=201)
+def create_ticket(ticket: TicketCreate):
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO notes (text) VALUES (%s) RETURNING id, text;",
-                (note.text,),
+                """
+                INSERT INTO tickets (title, description, priority)
+                VALUES (%s, %s, %s)
+                RETURNING id, title, description, priority, status;
+                """,
+                (
+                    ticket.title,
+                    ticket.description,
+                    ticket.priority,
+                ),
             )
 
             row = cur.fetchone()
@@ -87,18 +102,21 @@ def create_note(note: NoteCreate):
 
     return {
         "id": row[0],
-        "text": row[1],
+        "title": row[1],
+        "description": row[2],
+        "priority": row[3],
+        "status": row[4],
     }
 
 
-@app.get("/notes")
-def list_notes():
+@app.get("/tickets")
+def list_tickets():
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, text, created_at
-                FROM notes
+                SELECT id, title, description, priority, status, created_at
+                FROM tickets
                 ORDER BY id DESC;
                 """
             )
@@ -108,8 +126,37 @@ def list_notes():
     return [
         {
             "id": row[0],
-            "text": row[1],
-            "created_at": row[2].isoformat(),
+            "title": row[1],
+            "description": row[2],
+            "priority": row[3],
+            "status": row[4],
+            "created_at": row[5].isoformat(),
         }
         for row in rows
     ]
+
+
+@app.get("/tickets/stats")
+def ticket_stats():
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM tickets;")
+            total = cur.fetchone()[0]
+
+            cur.execute(
+                """
+                SELECT status, COUNT(*)
+                FROM tickets
+                GROUP BY status;
+                """
+            )
+
+            rows = cur.fetchall()
+
+    return {
+        "total": total,
+        "by_status": {
+            row[0]: row[1]
+            for row in rows
+        },
+    }

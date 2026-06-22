@@ -2,12 +2,12 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Foro 7 - Stack Containerizado</title>
+  <title>Foro 7 - Mesa de Ayuda</title>
 
   <style>
     body {
       font-family: Arial, sans-serif;
-      max-width: 700px;
+      max-width: 950px;
       margin: 40px auto;
       background: #f4f6f8;
       color: #222;
@@ -20,9 +20,15 @@
       box-shadow: 0 4px 16px rgba(0,0,0,0.08);
     }
 
-    input {
+    .form {
+      display: grid;
+      grid-template-columns: 1fr 1.5fr 140px auto;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    input, select {
       padding: 10px;
-      width: 70%;
       border: 1px solid #ccc;
       border-radius: 8px;
     }
@@ -36,57 +42,133 @@
       color: white;
     }
 
-    li {
-      margin: 8px 0;
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+    }
+
+    th, td {
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+      padding: 10px;
+      vertical-align: top;
+    }
+
+    .summary {
+      margin-top: 16px;
+      font-weight: bold;
+      background: #eef2ff;
+      padding: 12px;
+      border-radius: 8px;
     }
   </style>
 </head>
 
 <body>
   <section>
-    <h1>Foro 7 - Aimaretti - Palazzo</h1>
+    <h1>Foro 7 - Mesa de ayuda IT</h1>
 
-    <input id="noteInput" placeholder="Escribí una nota..." />
-    <button onclick="createNote()">Guardar</button>
+    <div class="form">
+      <input id="titleInput" placeholder="Título del ticket" />
+      <input id="descriptionInput" placeholder="Descripción del problema" />
 
-    <h2>Notas guardadas</h2>
-    <ul id="notesList"></ul>
+      <select id="priorityInput">
+        <option value="Baja">Baja</option>
+        <option value="Media">Media</option>
+        <option value="Alta">Alta</option>
+      </select>
+
+      <button onclick="createTicket()">Crear ticket</button>
+    </div>
+
+    <h2>Tickets cargados</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Título</th>
+          <th>Descripción</th>
+          <th>Prioridad</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="ticketsTable"></tbody>
+    </table>
+
+    <div class="summary" id="ticketSummary"></div>
   </section>
 
   <script>
-    async function loadNotes() {
-      const response = await fetch("/api/notes");
-      const notes = await response.json();
+    async function loadTickets() {
+      const response = await fetch("/api/tickets");
+      const tickets = await response.json();
 
-      const list = document.getElementById("notesList");
-      list.innerHTML = "";
+      const table = document.getElementById("ticketsTable");
+      table.innerHTML = "";
 
-      notes.forEach(note => {
-        const item = document.createElement("li");
-        item.textContent = `#${note.id} - ${note.text}`;
-        list.appendChild(item);
+      tickets.forEach(ticket => {
+        const row = document.createElement("tr");
+
+        row.innerHTML = `
+          <td>${ticket.id}</td>
+          <td>${ticket.title}</td>
+          <td>${ticket.description}</td>
+          <td>${ticket.priority}</td>
+          <td>${ticket.status}</td>
+        `;
+
+        table.appendChild(row);
       });
+
+      await loadStats();
     }
 
-    async function createNote() {
-      const input = document.getElementById("noteInput");
-      const text = input.value.trim();
+    async function loadStats() {
+      const response = await fetch("/api/tickets/stats");
+      const data = await response.json();
 
-      if (!text) return;
+      const abiertos = data.by_status.Abierto || 0;
 
-      await fetch("/api/notes", {
+      document.getElementById("ticketSummary").textContent =
+        `Total de tickets: ${data.total} | Abiertos: ${abiertos}`;
+    }
+
+    async function createTicket() {
+      const titleInput = document.getElementById("titleInput");
+      const descriptionInput = document.getElementById("descriptionInput");
+      const priorityInput = document.getElementById("priorityInput");
+
+      const title = titleInput.value.trim();
+      const description = descriptionInput.value.trim();
+      const priority = priorityInput.value;
+
+      if (!title || !description || !priority) {
+        alert("Completá título, descripción y prioridad.");
+        return;
+      }
+
+      await fetch("/api/tickets", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ text })
+        body: JSON.stringify({
+          title,
+          description,
+          priority
+        })
       });
 
-      input.value = "";
-      await loadNotes();
+      titleInput.value = "";
+      descriptionInput.value = "";
+      priorityInput.value = "Baja";
+
+      await loadTickets();
     }
 
-    loadNotes();
+    loadTickets();
   </script>
 </body>
 </html>
